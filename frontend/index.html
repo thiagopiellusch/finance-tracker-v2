@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>FinancePro v4.5 Stable</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="app.js"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Inter', sans-serif; } [x-cloak] { display: none !important; } </style>
+</head>
+<body class="bg-[#F8FAFC]" x-data="financeApp()" x-cloak>
+
+    <header class="bg-white border-b sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-6 h-20 flex justify-between items-center">
+            <span class="font-extrabold text-2xl tracking-tighter text-indigo-600">FINANCE<span class="text-slate-900">PRO</span></span>
+            <div class="flex items-center gap-4">
+                <input type="month" x-model="mes" @change="atualizarTudo()" class="bg-slate-100 border-none rounded-xl px-4 py-2 font-bold text-sm outline-none focus:ring-2 ring-indigo-500">
+                <button @click="modalAdmin = true" class="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-indigo-600 transition">Painel Admin</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-6 space-y-8">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div class="bg-white p-5 rounded-3xl border shadow-sm col-span-1">
+                <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Renda</p>
+                <h2 class="text-xl font-extrabold text-slate-900" x-text="formatarMoeda(dash.renda_mensal)"></h2>
+            </div>
+            <div class="bg-white p-5 rounded-3xl border shadow-sm col-span-1">
+                <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Total Saídas</p>
+                <h2 class="text-xl font-extrabold text-slate-900" x-text="formatarMoeda(dash.total_gastos)"></h2>
+            </div>
+            
+            <div class="p-5 rounded-3xl border shadow-sm col-span-1" :class="saldo_mes < 0 ? 'bg-rose-50 border-rose-100' : 'bg-emerald-50 border-emerald-100'">
+                <p class="text-[10px] font-bold uppercase mb-1" :class="saldo_mes < 0 ? 'text-rose-600' : 'text-emerald-600'">Saldo do Mês</p>
+                <h2 class="text-xl font-extrabold" :class="saldo_mes < 0 ? 'text-rose-700' : 'text-emerald-700'" x-text="formatarMoeda(saldo_mes)"></h2>
+            </div>
+
+            <div class="bg-white p-5 rounded-3xl border shadow-sm col-span-1 flex items-center gap-3">
+                <div class="w-14 h-14 shrink-0 relative">
+                    <canvas id="chartCategorias"></canvas>
+                </div>
+                <div class="flex flex-col gap-0.5">
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+                        <span class="text-[9px] font-black text-slate-500 uppercase">Fixo <span class="text-indigo-600" x-text="perc_fixo + '%'"></span></span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                        <span class="text-[9px] font-black text-slate-500 uppercase">Var <span class="text-slate-700" x-text="perc_variavel + '%'"></span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-indigo-600 p-5 rounded-3xl shadow-xl text-white flex flex-col justify-between">
+                <div>
+                    <p class="text-[10px] font-bold opacity-70 uppercase tracking-tight">Uso do Orçamento</p>
+                    <h2 class="text-2xl font-black" x-text="dash.percentual_uso + '%'"></h2>
+                </div>
+                <button x-show="!dash.fechado" @click="fecharMesAction()" class="mt-2 bg-white/20 py-1.5 rounded-xl text-[9px] font-bold uppercase hover:bg-white/30 transition">Fechar Mês</button>
+                <div x-show="dash.fechado" class="mt-2 bg-black/20 py-1.5 rounded-xl text-center text-[9px] font-bold">🔒 FECHADO</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-12 space-y-6">
+                <section class="bg-white p-6 rounded-3xl border shadow-sm" :class="dash.fechado ? 'opacity-30 pointer-events-none' : ''">
+                    <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
+                        <select x-model="form.categoria_id" class="md:col-span-2 bg-slate-50 h-12 rounded-xl px-4 font-bold text-sm outline-none">
+                            <option value="">Selecione a Categoria</option>
+                            <template x-for="c in categorias" :key="c.id"><option :value="c.id" x-text="c.nome"></option></template>
+                        </select>
+                        <input type="number" x-model="form.valor" placeholder="Valor" class="bg-slate-50 h-12 rounded-xl px-4 font-bold outline-none">
+                        <input type="date" x-model="form.vencimento" class="bg-slate-50 h-12 rounded-xl px-4 font-bold outline-none text-slate-500">
+                        <select x-model="form.uso" class="bg-slate-50 h-12 rounded-xl px-4 font-bold text-sm outline-none">
+                            <option value="FIXO">FIXO</option>
+                            <option value="VARIAVEL">VARIAVEL</option>
+                        </select>
+                        <button @click="salvarDespesa()" class="bg-indigo-600 text-white rounded-xl font-bold h-12 hover:bg-indigo-700 transition">LANÇAR</button>
+                    </div>
+                </section>
+
+                <section class="bg-white rounded-3xl border shadow-sm overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-slate-50 border-b">
+                            <tr>
+                                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Item / Categoria</th>
+                                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Vencimento</th>
+                                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Tipo</th>
+                                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Valor</th>
+                                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <template x-for="d in despesas" :key="d.id">
+                                <tr class="hover:bg-slate-50/50 transition" :class="d.pago ? 'opacity-60 bg-slate-50/30' : ''">
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-2 h-2 rounded-full" :class="d.uso == 'FIXO' ? 'bg-indigo-500' : 'bg-slate-300'"></div>
+                                            <span class="font-bold text-slate-700 uppercase text-sm" x-text="d.categoria"></span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs font-bold" :class="isVencido(d.vencimento) && !d.pago ? 'text-rose-500' : 'text-slate-500'" x-text="d.vencimento.split('-').reverse().join('/')"></span>
+                                            <template x-if="isVencido(d.vencimento) && !d.pago">
+                                                <span class="text-[9px] bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full font-black uppercase">Atrasado</span>
+                                            </template>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-[10px] font-bold text-slate-400" x-text="d.uso"></td>
+                                    <td class="px-6 py-4 text-right font-black text-slate-900" x-text="formatarMoeda(d.valor)"></td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex justify-center gap-2" x-show="!dash.fechado">
+                                            <button @click="pagarDespesa(d.id)" :disabled="d.pago == 1" 
+                                                    class="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all shadow-sm"
+                                                    :class="d.pago == 1 ? 'bg-emerald-100 text-emerald-600 border border-emerald-200 cursor-default' : 'bg-emerald-500 text-white hover:bg-emerald-600 active:scale-95'">
+                                                <span x-text="d.pago == 1 ? 'PAGO ✓' : 'Pagar'"></span>
+                                            </button>
+                                            <button @click="excluirDespesa(d.id)" class="p-1.5 text-slate-300 hover:text-rose-500"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]" x-show="modalAdmin" x-transition x-cloak>
+        <div class="bg-white rounded-[2rem] max-w-2xl w-full shadow-2xl overflow-hidden flex h-[600px]">
+            <div class="w-48 bg-slate-50 border-r p-6 flex flex-col justify-between">
+                <div class="space-y-4">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Painel Admin</p>
+                    <nav class="space-y-1">
+                        <div class="p-3 bg-white rounded-xl shadow-sm text-indigo-600 font-bold text-xs cursor-pointer">Visão Geral</div>
+                    </nav>
+                </div>
+                <button @click="modalAdmin = false" class="w-full bg-slate-200 text-slate-600 py-3 rounded-xl text-xs font-black uppercase tracking-tighter">Fechar</button>
+            </div>
+            <div class="flex-1 p-8 space-y-8 overflow-y-auto">
+                <div>
+                    <h3 class="text-xl font-extrabold text-slate-900 tracking-tight">Gestão de Ciclo</h3>
+                    <p class="text-xs text-slate-500">Controle financeiro e travas de segurança.</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                        <label class="text-[9px] font-black text-slate-400 uppercase block mb-2">Renda do Período</label>
+                        <input type="number" x-model="novaRenda" class="w-full bg-white border-none rounded-xl p-3 font-bold text-sm shadow-inner outline-none ring-1 ring-slate-200">
+                        <button @click="await fetch(`http://127.0.0.1:8000/config/renda?mes=${mes}&valor=${novaRenda}`, {method:'POST', headers:authHeader}); atualizarTudo();" class="w-full mt-3 bg-slate-900 text-white py-2 rounded-xl text-[10px] font-bold uppercase">Atualizar</button>
+                    </div>
+                    <div class="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex flex-col justify-center">
+                        <label class="text-[9px] font-black text-slate-400 uppercase block mb-2">Estado: <span x-text="dash.fechado ? 'FECHADO' : 'ABERTO'" :class="dash.fechado ? 'text-rose-500' : 'text-emerald-500'"></span></label>
+                        <button x-show="dash.fechado" @click="reabrirMesAction()" class="w-full bg-rose-600 text-white py-4 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-rose-100">Reabrir Período</button>
+                        <p x-show="!dash.fechado" class="text-[10px] text-slate-400 italic text-center">O mês está aberto para edições.</p>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Acesso de Segurança</label>
+                    <input type="password" x-model="senha" class="w-full bg-slate-100 rounded-xl p-4 font-bold text-sm outline-none focus:ring-2 ring-indigo-500 transition-all" placeholder="Senha Master">
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
