@@ -19,12 +19,12 @@ Sistema financeiro full-stack desenvolvido como modelo de referência para Clean
 
 Este projeto é uma vitrine técnica de um sistema financeiro full-stack, focado em princípios de **Clean Architecture** e **Resiliência**.
 
-## 🏗️ Decisões Arquiteturais
+##  Decisões Arquiteturais
 * **Backend (Python):** Escolhido pela facilidade de integração com bibliotecas de análise de dados e automação.
 * **Consistência de Dados:** Implementação de validações rigorosas para garantir a integridade dos registros financeiros.
 * **Interface:** Foco em usabilidade e feedback em tempo real para o usuário.
 
-## 🛠️ Stack Técnica
+##  Stack Técnica
 - **Linguagem:** Python
 - **Estrutura:** Backend & Frontend desacoplados.
 - **Governança:** Documentação de variáveis de ambiente e processos de deploy.
